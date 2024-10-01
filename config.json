@@ -1,0 +1,29 @@
+{
+    "models": {
+        "Phi-3.5-mini-instruct": {
+            "path": "./models/microsoft_Phi-3.5-mini-instruct",
+            "type": "text",
+            "run_inference": false,
+            "download": true,
+            "save_to_s3": false
+        },
+        "Phi-3.5-MoE-instruct": {
+            "path": "./models/microsoft_Phi-3.5-MoE-instruct",
+            "type": "text",
+            "run_inference": false,
+            "download": true,
+            "save_to_s3": false
+        },
+        "Phi-3.5-vision-instruct": {
+            "path": "./models/microsoft_Phi-3.5-vision-instruct",
+            "type": "vision",
+            "run_inference": true,
+            "download": true,
+            "save_to_s3": false
+        }
+    },
+    "s3": {
+        "bucket_name": "your-bucket-name",
+        "region": "us-east-1"
+    }
+}

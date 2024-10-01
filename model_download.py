@@ -1,4 +1,9 @@
 import os
+import json
+import torch
+import boto3
+from botocore.exceptions import NoCredentialsError
+from urllib.parse import urlparse
 import torch
 from urllib.parse import urlparse
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
@@ -41,7 +46,43 @@ def save_model(model_name, base_dir='./models'):
     print(f"Total size of downloaded files for '{model_name}' in '{model_dir}': "
           f"{total_size_gb:.2f} GB")
 
+def upload_to_s3(model_dir, model_name, s3_details):
+    # Initialize S3 client
+    s3 = boto3.client(
+        's3',
+        region_name=s3_details['region']
+    )
+
+    # Upload each file in the model directory to S3
+    for filename in os.listdir(model_dir):
+        file_path = os.path.join(model_dir, filename)
+        if os.path.isfile(file_path):
+            try:
+                s3.upload_file(file_path, s3_details['bucket_name'], f"{model_name.replace('/', '_')}/{filename}")
+                print(f"Uploaded {filename} to S3 bucket {s3_details['bucket_name']}")
+            except FileNotFoundError:
+                print(f"The file {file_path} was not found")
+            except NoCredentialsError:
+                print("Credentials not available")
+
+
+def main():
+    # Load the configuration from config.json
+    config_path = 'config.json'
+    with open(config_path, 'r') as config_file:
+        config = json.load(config_file)
+
+    # Get S3 details
+    s3_details = config['s3']
+
+    # Iterate through models in the configuration
+    for model_name, options in config['models'].items():
+        print(f"Model name: {model_name}")
+        if options.get("download", False):
+            model_dir = save_model(model_name)
+            if options.get("save_to_s3", False):
+                upload_to_s3(model_dir, model_name, s3_details)
+
 if __name__ == "__main__":
-    # Replace 'microsoft/Phi-3.5-mini-instruct' with any model name you want to save
-    model_name = "microsoft/Phi-3.5-mini-instruct"
-    save_model(model_name)
+    main()
+
