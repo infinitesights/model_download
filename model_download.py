@@ -5,8 +5,12 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 from urllib.parse import urlparse
 import torch
+from torch import bfloat16
 from urllib.parse import urlparse
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+import transformers
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, AutoProcessor
+from PIL import Image 
+import requests 
 
 def save_model(model_name, base_dir='./models'):
     # Set the random seed for reproducibility
@@ -17,21 +21,37 @@ def save_model(model_name, base_dir='./models'):
     os.makedirs(model_dir, exist_ok=True)
 
     # Load the model configuration to get model information
-    config = AutoConfig.from_pretrained(model_name)
-    download_url = f"https://huggingface.co/{model_name}/resolve/main/pytorch_model.bin"
-    parsed_url = urlparse(download_url)
-    domain = parsed_url.netloc
-    
-    print(f"Downloading model from: {download_url}")
-    print(f"Domain to open for network configuration: {domain}")
+   # config = transformers.from_pretrained(model_name)
+    #download_url = f"https://huggingface.co/{model_name}/resolve/main/pytorch_model.bin"
+    #parsed_url = urlparse(download_url)
+    #domain = parsed_url.netloc
 
-    # Download the model and tokenizer locally
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="auto", trust_remote_code=True)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    #print(f"Downloading model from: {download_url}")
+    #print(f"Domain to open for network configuration: {domain}")
 
-    # Save the model and tokenizer locally in the model-specific folder
-    model.save_pretrained(model_dir)
-    tokenizer.save_pretrained(model_dir)
+    if model_name != "microsoft/Phi-3.5-vision-instruct":
+        # Download the model and tokenizer locally
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=bfloat16, trust_remote_code=True, device_map="auto")
+        tokenizer = AutoTokenizer.from_pretrained(model_name,trust_remote_code=True)
+        # Save the model and tokenizer locally in the model-specific folder
+        model.save_pretrained(model_dir, safe_serialization=False)
+        tokenizer.save_pretrained(model_dir)
+    else:
+        print("vision model")
+        # Note: set _attn_implementation='eager' if you don't have flash_attn installed
+        model = AutoModelForCausalLM.from_pretrained(model_name, device_map="cuda", trust_remote_code=True, torch_dtype="auto", _attn_implementation='flash_attention_2')
+        # for best performance, use num_crops=4 for multi-frame, num_crops=16 for single-frame.
+        processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True, num_crops=4) 
+          # Save the model and tokenizer locally in the model-specific folder
+        model.save_pretrained(model_dir, safe_serialization=False)
+        # Save the processor locally, handle cases where chat_template might not be present
+        try:
+            processor.save_pretrained(model_dir)
+        except AttributeError:
+            # You can choose to save it in a custom way if needed
+            print("Warning: 'chat_template' not found. Saving processor with default method.")
+
+  
 
     # Calculate the size of the downloaded files for the current model only
     total_size_new_files = 0
@@ -85,4 +105,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
